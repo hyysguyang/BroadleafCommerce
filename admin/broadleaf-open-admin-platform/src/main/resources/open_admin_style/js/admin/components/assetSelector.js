@@ -51,15 +51,15 @@
         
         selectButtonClickedRedactor : function(obj, event, key) {
             currentRedactor = this;
-            currentRedactor.selectionSave();
+            currentRedactor.selection.save();
             var $redactor = this.$element;
             
             $redactor.on('assetInfoSelected', function(event, fields) {
-                currentRedactor.selectionRestore();
+                currentRedactor.selection.restore();
                 var assetUrl =   fields['assetUrl'];
                 if (assetUrl.charAt(0) == "/") assetUrl = assetUrl.substr(1);
                 var $img = $('<img>', { 'src' : assetUrl });
-                currentRedactor.insertHtml($img.outerHTML());
+                currentRedactor.insert.html($img.outerHTML());
                 BLCAdmin.hideCurrentModal();
             });
 
@@ -179,5 +179,11 @@ $(document).ready(function() {
     $('body').on('change', '#assetUploadFile', function() {
     	// TODO: Show a div with "loading" message
     	$('#assetUploadForm').submit();
-    });       
+    });
+    
+    // Workaround for upload button on Internet Explorer < 11
+    if(window.navigator.userAgent.indexOf('MSIE ') > 0) {
+    	$('button.upload-asset').addClass('hidden');
+    	$('#assetUploadForm').removeClass('hidden');
+    }
 });

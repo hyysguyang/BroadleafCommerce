@@ -21,6 +21,7 @@ package org.broadleafcommerce.core.search.service.solr;
 
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.MapUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -84,6 +85,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.annotation.Resource;
 import javax.xml.parsers.ParserConfigurationException;
@@ -136,8 +139,18 @@ public class SolrSearchServiceImpl implements SearchService, DisposableBean {
             if (!tempDir.exists()) {
                 tempDir.mkdirs();
             }
-
+            
             solrServer = tempDir.getAbsolutePath();
+            
+            // create the 'lib' directory with a placeholder file that has to exist in Solr's home directory to avoid a
+            // warning log message
+            String libDir = FilenameUtils.concat(solrServer, "lib");
+            LOG.debug("Creating Solr home lib directory: " + libDir);
+            new File(libDir).mkdir();
+            
+            String placeholder = FilenameUtils.concat(libDir, "solrlib_placeholder.deleteme");
+            LOG.debug("Creating Solr lib placeholder file: " + placeholder);
+            new File(placeholder).createNewFile();
         }
         
         File solrXml = new File(new File(solrServer), "solr.xml");
@@ -360,10 +373,12 @@ public class SolrSearchServiceImpl implements SearchService, DisposableBean {
         Map<String, SearchFacetDTO> namedFacetMap = getNamedFacetMap(facets, searchCriteria);
 
         // Build the basic query
+        // Solr queries with a 'start' parameter cannot be a negative number
+        int start = (searchCriteria.getPage() <= 0) ? 0 : (searchCriteria.getPage() - 1);
         SolrQuery solrQuery = new SolrQuery()
                 .setQuery(qualifiedSolrQuery)
                 .setRows(searchCriteria.getPageSize())
-                .setStart((searchCriteria.getPage() - 1) * searchCriteria.getPageSize());
+                .setStart((start) * searchCriteria.getPageSize());
         if (useSku) {
             solrQuery.setFields(shs.getSkuIdFieldName());
         } else {
@@ -551,7 +566,7 @@ public class SolrSearchServiceImpl implements SearchService, DisposableBean {
                         }
                         selectedValues[i] = "{!" + getSolrRangeFunctionString(minValue, maxValue) + "}field(" + solrKey + ")";
                     } else {
-                        selectedValues[i] = solrKey + ":\"" + selectedValues[i] + "\"";
+                        selectedValues[i] = solrKey + ":\"" + scrubFacetValue(selectedValues[i]) + "\"";
                     }
                 }
                 String valueString = StringUtils.join(selectedValues, " OR ");
@@ -562,6 +577,23 @@ public class SolrSearchServiceImpl implements SearchService, DisposableBean {
                 query.addFilterQuery(sb.toString());
             }
         }
+    }
+    
+    /**
+     * Scrubs a facet value string for all Solr special characters, automatically adding escape characters
+     * 
+     * @param facetValue The raw facet value
+     * @return The facet value with all special characters properly escaped, safe to be used in construction of a Solr query
+     */
+    protected String scrubFacetValue(String facetValue) {
+        String scrubbedFacetValue = facetValue;
+        
+        String[] specialCharacters = new String[] { "\\\\", "\\+", "-", "&&", "\\|\\|", "\\!", "\\(", "\\)", "\\{", "\\}", "\\[", "\\]", "\\^", "\"", "~", "\\*", "\\?", ":" };
+        for(String character : specialCharacters) {
+            scrubbedFacetValue = scrubbedFacetValue.replaceAll(character, "\\\\" + character);
+        }
+        
+        return scrubbedFacetValue;
     }
 
     /**

@@ -29,7 +29,6 @@ import org.apache.commons.logging.LogFactory;
 import org.broadleafcommerce.common.admin.domain.AdminMainEntity;
 import org.broadleafcommerce.common.exception.SecurityServiceException;
 import org.broadleafcommerce.common.exception.ServiceException;
-import org.broadleafcommerce.common.media.domain.Media;
 import org.broadleafcommerce.common.media.domain.MediaDto;
 import org.broadleafcommerce.common.persistence.EntityConfiguration;
 import org.broadleafcommerce.common.presentation.client.AddMethodType;
@@ -76,7 +75,6 @@ import org.broadleafcommerce.openadmin.web.rulebuilder.dto.DataWrapper;
 import org.springframework.stereotype.Service;
 
 import com.fasterxml.jackson.core.Version;
-import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 
@@ -117,6 +115,9 @@ public class FormBuilderServiceImpl implements FormBuilderService {
     @Resource(name = "blRowLevelSecurityService")
     protected RowLevelSecurityService rowLevelSecurityService;
 
+    @Resource(name = "blMediaBuilderService")
+    protected MediaBuilderService mediaBuilderService;
+    
     protected static final VisibilityEnum[] FORM_HIDDEN_VISIBILITIES = new VisibilityEnum[] { 
             VisibilityEnum.HIDDEN_ALL, VisibilityEnum.FORM_HIDDEN 
     };
@@ -659,7 +660,8 @@ public class FormBuilderServiceImpl implements FormBuilderService {
                             field.setValue(entityProp.getValue());
                             field.setDisplayValue(entityProp.getDisplayValue());
                             MediaField mf = (MediaField) field;
-                            mf.setMedia(convertJsonToMedia(entityProp.getUnHtmlEncodedValue()));
+                            Class<MediaDto> type = entityConfiguration.lookupEntityClass(MediaDto.class.getName(), MediaDto.class);
+                            mf.setMedia(mediaBuilderService.convertJsonToMedia(entityProp.getUnHtmlEncodedValue(), type));
                         } else if (!SupportedFieldType.PASSWORD_CONFIRM.equals(basicFM.getExplicitFieldType())){
                             field.setValue(entityProp.getValue());
                             field.setDisplayValue(entityProp.getDisplayValue());
@@ -668,19 +670,6 @@ public class FormBuilderServiceImpl implements FormBuilderService {
                 }
             }
         }
-    }
-
-    protected Media convertJsonToMedia(String json) {
-        if (json != null && !"".equals(json)) {
-            try {
-                ObjectMapper om = new ObjectMapper();
-                om.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-                return om.readValue(json, entityConfiguration.lookupEntityClass(MediaDto.class.getName(), MediaDto.class));
-            } catch (Exception e) {
-                LOG.warn("Error parsing json to media " + json, e);
-            }
-        }
-        return entityConfiguration.createEntityInstance(MediaDto.class.getName(), MediaDto.class);
     }
 
     /**
@@ -740,11 +729,17 @@ public class FormBuilderServiceImpl implements FormBuilderService {
                     // Build the options map
                     Map<String, String> options = new HashMap<String, String>();
                     for (Entity row : rows) {
-                        String displayValue = row.findProperty(displayProp).getDisplayValue();
-                        if (StringUtils.isBlank(displayValue)) {
-                            displayValue = row.findProperty(displayProp).getValue();
+                        Property prop = row.findProperty(displayProp);
+                        if (prop == null) {
+                            LOG.warn("Could not find displayProp [" + displayProp + "] on entity [" + 
+                                    ef.getCeilingEntityClassname() + "]");
+                        } else {
+                            String displayValue = prop.getDisplayValue();
+                            if (StringUtils.isBlank(displayValue)) {
+                                displayValue = prop.getValue();
+                            }
+                            options.put(row.findProperty(idProp).getValue(), displayValue);
                         }
-                        options.put(row.findProperty(idProp).getValue(), displayValue);
                     }
                     
                     // Set the options on the entity field

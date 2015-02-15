@@ -23,6 +23,7 @@ import org.apache.commons.beanutils.PropertyUtils;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.BooleanUtils;
 import org.apache.commons.lang3.reflect.MethodUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -78,6 +79,8 @@ import org.broadleafcommerce.openadmin.server.service.persistence.validation.Ent
 import org.broadleafcommerce.openadmin.server.service.persistence.validation.PopulateValueRequestValidator;
 import org.broadleafcommerce.openadmin.server.service.persistence.validation.PropertyValidationResult;
 import org.broadleafcommerce.openadmin.server.service.type.FieldProviderResponse;
+import org.hibernate.FlushMode;
+import org.hibernate.Session;
 import org.springframework.beans.BeansException;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
@@ -252,7 +255,10 @@ public class BasicPersistenceModule implements PersistenceModule, RecordHelper, 
         if (!handled) {
             defaultFieldPersistenceProvider.filterProperties(new AddFilterPropertiesRequest(entity), unfilteredProperties);
         }
+        Session session = getPersistenceManager().getDynamicEntityDao().getStandardEntityManager().unwrap(Session.class);
+        FlushMode originalFlushMode = session.getFlushMode();
         try {
+            session.setFlushMode(FlushMode.MANUAL);
             for (Property property : entity.getProperties()) {
                 BasicFieldMetadata metadata = (BasicFieldMetadata) mergedProperties.get(property.getName());
                 Class<?> returnType;
@@ -370,6 +376,8 @@ public class BasicPersistenceModule implements PersistenceModule, RecordHelper, 
             throw new PersistenceException(e);
         } catch (InstantiationException e) {
             throw new PersistenceException(e);
+        } finally {
+            session.setFlushMode(originalFlushMode);
         }
         return instance;
     }
@@ -1011,14 +1019,17 @@ public class BasicPersistenceModule implements PersistenceModule, RecordHelper, 
                     // the @ManyToOne side) then it will not be updated. In that instance, we have to explicitly
                     // set the manyTo field to null so that subsequent lookups will not find it
                     if (manyToFieldMetadata instanceof BasicFieldMetadata) {
-                        if (((BasicFieldMetadata) manyToFieldMetadata).getRequired()) {
+                        if (BooleanUtils.isTrue(((BasicFieldMetadata) manyToFieldMetadata).getRequired())) {
                             throw new ServiceException("Could not remove from the collection as the ManyToOne side is a"
                                     + " non-optional relationship. Consider changing 'optional=true' in the @ManyToOne annotation"
                                     + " or nullable=true within the @JoinColumn annotation");
                         }
                         Field manyToField = fieldManager.getField(instance.getClass(), foreignKey.getManyToField());
-                        manyToField.set(instance, null);
-                        instance = persistenceManager.getDynamicEntityDao().merge(instance);
+                        Object manyToObject = manyToField.get(instance);
+                        if (manyToObject != null && !(manyToObject instanceof Collection) && !(manyToObject instanceof Map)) {
+                            manyToField.set(instance, null);
+                            instance = persistenceManager.getDynamicEntityDao().merge(instance);
+                        }
                     }
                     break;
                 case BASIC:

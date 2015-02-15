@@ -1,8 +1,8 @@
 /*
  * #%L
- * BroadleafCommerce Framework Web
+ * BroadleafCommerce Profile
  * %%
- * Copyright (C) 2009 - 2013 Broadleaf Commerce
+ * Copyright (C) 2009 - 2014 Broadleaf Commerce
  * %%
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,10 +17,16 @@
  * limitations under the License.
  * #L%
  */
-package org.broadleafcommerce.core.web.order.model;
+package org.broadleafcommerce.profile.core.dao;
 
-import org.broadleafcommerce.core.order.service.call.OrderItemRequestDTO;
+import org.broadleafcommerce.profile.core.domain.Account;
 
-public class AddToCartItem extends OrderItemRequestDTO {
-    
+public interface AccountDao {
+
+    public Account create();
+
+    public Account readAccountById(Long id);
+
+    public Account save(Account account);
+
 }

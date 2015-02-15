@@ -30,11 +30,11 @@ import org.broadleafcommerce.core.order.domain.DiscreteOrderItem;
 import org.broadleafcommerce.core.order.domain.Order;
 import org.broadleafcommerce.core.order.domain.OrderItem;
 import org.broadleafcommerce.core.order.service.OrderService;
+import org.broadleafcommerce.core.order.service.call.AddToCartItem;
 import org.broadleafcommerce.core.order.service.call.UpdateCartResponse;
 import org.broadleafcommerce.core.order.service.exception.AddToCartException;
 import org.broadleafcommerce.core.order.service.exception.RemoveFromCartException;
 import org.broadleafcommerce.core.pricing.service.exception.PricingException;
-import org.broadleafcommerce.core.web.order.model.AddToCartItem;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -164,8 +164,7 @@ public class UpdateCartServiceImpl implements UpdateCartService {
             } else {
                 try {
                     if (repriceCart != null && repriceCart.booleanValue()) {
-                        cart.updatePrices();
-                        orderService.save(cart, true);
+                        orderService.save(cart, true, true);
                     } else if (saveCart != null && saveCart.booleanValue()) {
                         orderService.save(cart, false);
                     }

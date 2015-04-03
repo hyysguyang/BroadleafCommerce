@@ -65,9 +65,10 @@ public class BroadleafCommonAddressValidator {
             ValidationUtils.rejectIfEmptyOrWhitespace(errors, "address.lastName", "lastName.required");
         }
 
-        if (address.getIsoCountryAlpha2() == null) {
-            errors.rejectValue("address.isoCountryAlpha2", "country.required", null, null);
-        }
+        //TODO:Comments it for demo since State and Country has been deprecated. We should uncomment this for use ISOCountry
+//        if (address.getIsoCountryAlpha2() == null) {
+//            errors.rejectValue("address.isoCountryAlpha2", "country.required", null, null);
+//        }
     }
 
 }
